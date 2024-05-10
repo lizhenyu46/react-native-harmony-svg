@@ -96,7 +96,7 @@ protected:
 
     bool UpdateFillStyle(bool antiAlias = true);
     bool UpdateStrokeStyle(bool antiAlias = true);
-    void UpdateGradient();
+    void UpdateGradient(int32_t width, int32_t height);
     void SetGradientStyle(double opacity);
     void UpdateLineDash();
 

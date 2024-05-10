@@ -28,7 +28,7 @@ void SvgGraphic::OnDraw(OH_Drawing_Canvas *canvas) {
     //     OH_Drawing_PenReset(strokePen_);
     // 获取子类的绘制路径。
     path_ = AsPath();
-    UpdateGradient();
+    UpdateGradient(OH_Drawing_CanvasGetWidth(canvas), OH_Drawing_CanvasGetHeight(canvas));
     if (UpdateFillStyle()) {
         OnGraphicFill(canvas);
     }
@@ -41,62 +41,35 @@ void SvgGraphic::OnDraw(OH_Drawing_Canvas *canvas) {
     }
 }
 // todo implement bounds
-void SvgGraphic::UpdateGradient() {
-    const auto &fillState_ = attributes_.fillState;
-    //     auto &gradient = fillState_.GetGradient();
-    std::optional<Gradient> gradient = fillState_.GetGradient();
+void SvgGraphic::UpdateGradient(int32_t width, int32_t height) {
+    auto &fillState_ = attributes_.fillState;
+    auto &gradient = fillState_.GetGradient();
     CHECK_NULL_VOID(gradient);
-    //     auto bounds = AsBounds(viewPort);
-    //     auto width = bounds.Width();
-    //     auto height = bounds.Height();
+    // auto bounds = AsBounds(viewPort);
+    auto bounds = GetRootViewBox();
+    // auto width = bounds.Width();
+    // auto height = bounds.Height();
+    auto left = bounds.Left();
+    auto top = bounds.Right();
+    LOG(INFO) << "[SVGGraphic] UpdateGradient width:" << width << " height:" << height << " left:" << left << " top:" << top;
+
     if (gradient->GetType() == GradientType::LINEAR) {
-        const auto &linearGradient = gradient->GetLinearGradient();
+        auto linearGradient = gradient->GetLinearGradient();
         auto gradientInfo = LinearGradientInfo();
-        //         auto x1 = linearGradient.x1 ? ConvertDimensionToPx(linearGradient.x1.value(), width) : 0.0;
-        //         gradientInfo.x1 = x1 + bounds.Left();
-        //         gradientInfo.x1 = x1 ;
-        //         auto y1 = linearGradient.y1 ? ConvertDimensionToPx(linearGradient.y1.value(), height) : 0.0;
-        //         gradientInfo.y1 = y1 + bounds.Top();
-        //         gradientInfo.y1 = y1 ;
-        //         auto x2 = ConvertDimensionToPx((linearGradient.x2 ? linearGradient.x2.value() : 1.0_pct), width);
-        //         gradientInfo.x2 = x2 + bounds.Left();
-        //         gradientInfo.x2 = x2 ;
-        //         auto y2 = linearGradient.y2 ? ConvertDimensionToPx(linearGradient.y2.value(), height) : 0.0;
-        //         gradientInfo.y2 = y2 + bounds.Top();
+        gradientInfo.x1 = linearGradient.x1 ? vpToPx(left + width * linearGradient.x1.value().Value()) : 0.0;
+        gradientInfo.y1 = linearGradient.y1 ? vpToPx(top + height * linearGradient.y1.value().Value()) : 0.0;
+        gradientInfo.x2 = linearGradient.x2 ? vpToPx(left + width * linearGradient.x2.value().Value()) : 0.0;
+        gradientInfo.y2 = linearGradient.y2 ? vpToPx(top + height * linearGradient.y2.value().Value()) : 0.0;
         gradient->SetLinearGradientInfo(gradientInfo);
     }
     if (gradient->GetType() == GradientType::RADIAL) {
-        const auto &radialGradient = gradient->GetRadialGradient();
+        auto radialGradient = gradient->GetRadialGradient();
         auto gradientInfo = RadialGradientInfo();
-        //         Dimension radialHorizontalSize = Dimension(radialGradient.radialHorizontalSize.value().Value(),
-        //                                                    radialGradient.radialHorizontalSize.value().Unit());
-        //         gradientInfo.r = ConvertDimensionToPx(radialGradient.radialHorizontalSize ? radialHorizontalSize :
-        //         0.5_pct,
-        //                                               sqrt(width * height));
-        //         Dimension radialCenterX =
-        //             Dimension(radialGradient.radialCenterX.value().Value(),
-        //             radialGradient.radialCenterX.value().Unit());
-        //         gradientInfo.cx =
-        //             ConvertDimensionToPx(radialGradient.radialCenterX ? radialCenterX : 0.5_pct, width) +
-        //             bounds.Left();
-        //         Dimension radialCenterY =
-        //             Dimension(radialGradient.radialCenterY.value().Value(),
-        //             radialGradient.radialCenterY.value().Unit());
-        //         gradientInfo.cy =
-        //             ConvertDimensionToPx(radialGradient.radialCenterY ? radialCenterY : 0.5_pct, height) +
-        //             bounds.Top();
-        //         if (radialGradient.fRadialCenterX && radialGradient.fRadialCenterX->IsValid()) {
-        //             gradientInfo.fx = ConvertDimensionToPx(radialGradient.fRadialCenterX.value(), width) +
-        //             bounds.Left();
-        //         } else {
-        //             gradientInfo.fx = gradientInfo.cx;
-        //         }
-        //         if (radialGradient.fRadialCenterY && radialGradient.fRadialCenterY->IsValid()) {
-        //             gradientInfo.fy = ConvertDimensionToPx(radialGradient.fRadialCenterY.value(), height) +
-        //             bounds.Top();
-        //         } else {
-        //             gradientInfo.fy = gradientInfo.cy;
-        //         }
+        gradientInfo.r = vpToPx(0.5 * sqrt(width * height));
+        gradientInfo.cx = vpToPx(0.5 * width * radialGradient.radialCenterX.value().Value());
+        gradientInfo.cy = vpToPx(0.5 * height * radialGradient.radialCenterY.value().Value());
+        gradientInfo.fx = vpToPx(radialGradient.fRadialCenterX.value().Value() * width);
+        gradientInfo.fy = vpToPx(radialGradient.fRadialCenterY.value().Value() * height);
         gradient->SetRadialGradientInfo(gradientInfo);
     }
 }
@@ -123,6 +96,7 @@ void SvgGraphic::SetGradientStyle(double opacity) {
     CHECK_NULL_VOID(gradient);
     auto gradientColors = gradient->GetColors();
     if (gradientColors.empty()) {
+        LOG(INFO) << "[SVGGraphic] SetGradientStyle no gradient colors";
         return;
     }
     std::vector<float> pos;
@@ -132,7 +106,14 @@ void SvgGraphic::SetGradientStyle(double opacity) {
         colors.push_back(
             gradientColor.GetColor().BlendOpacity(gradientColor.GetOpacity()).BlendOpacity(opacity).GetValue());
     }
+    for (const auto &p : pos) {
+        LOG(INFO) << "[SVGGraphic] SetGradientStyle pos: " << p;
+    }
+    for (const auto &c : colors) {
+        LOG(INFO) << "[SVGGraphic] SetGradientStyle colors: " << c;
+    }
     if (gradient->GetType() == GradientType::LINEAR) {
+        LOG(INFO) << "[SVGGraphic] SetGradientStyle linear gradient";
         auto info = gradient->GetLinearGradientInfo();
         std::array<OH_Drawing_Point *, 2> pts = {
             OH_Drawing_PointCreate(static_cast<float>(info.x1), static_cast<float>(info.y1)),

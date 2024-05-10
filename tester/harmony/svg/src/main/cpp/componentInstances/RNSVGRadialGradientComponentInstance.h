@@ -29,13 +29,13 @@
 #include "ShadowNodes.h"
 
 namespace rnoh {
-class RNSVGLinearGradientComponentInstance : public CppComponentInstance<facebook::react::RNSVGLinearGradientShadowNode>, public SvgHost {
+class RNSVGRadialGradientComponentInstance : public CppComponentInstance<facebook::react::RNSVGRadialGradientShadowNode>, public SvgHost {
 
 private:
     SvgArkUINode m_svgArkUINode;
 
 public:
-    RNSVGLinearGradientComponentInstance(Context context);
+    RNSVGRadialGradientComponentInstance(Context context);
     
     void onChildInserted(ComponentInstance::Shared const &childComponentInstance, std::size_t index) override{}
     

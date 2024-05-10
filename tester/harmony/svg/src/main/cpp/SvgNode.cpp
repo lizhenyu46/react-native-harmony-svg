@@ -10,11 +10,27 @@
 #include "utils/Utils.h"
 #include "utils/StringUtils.h"
 #include "utils/SvgAttributesParser.h"
+#include "SVGGradient.h"
 
 namespace rnoh {
 
 void SvgNode::InitStyle(const SvgBaseAttribute &attr) {
     InheritAttr(attr);
+    if (hrefFill_) {
+        LOG(INFO) << "[UpdateCommonProps] hrefFill_";
+        auto href = attributes_.fillState.GetHref();
+        if (!href.empty()) {
+            auto gradient = GetGradient(href);
+            if (gradient) {
+                LOG(INFO) << "[UpdateCommonProps] fill state set gradient";
+                attributes_.fillState.SetGradient(gradient.value(), true);
+            } else {
+                LOG(INFO) << "[UpdateCommonProps] no gradient";
+            }
+        } else {
+            LOG(INFO) << "[UpdateCommonProps] href empty";
+        }
+    }
     OnInitStyle();
     if (passStyle_) {
         for (auto &node : children_) {
@@ -38,10 +54,11 @@ void SvgNode::OnDrawTraversed(OH_Drawing_Canvas *canvas) {
 
 const Rect &SvgNode::GetRootViewBox() const {
     if (!context_) {
-//         LOGE("Gradient failed, svgContext is null");
+        LOG(INFO) << "[GetRootViewBox] failed, svgContext is null";
         static Rect empty;
         return empty;
     }
+    LOG(INFO) << "[GetRootViewBox] get root view box";
     return context_->GetRootViewBox();
 }
 
@@ -113,6 +130,26 @@ double SvgNode::ConvertDimensionToPx(const Dimension &value, const Size &viewPor
     }
 }
 
+double SvgNode::ConvertDimensionToPx(const Dimension& value, double baseValue) const
+{
+    return value.Value() * baseValue;
+}
+
+std::optional<Gradient> SvgNode::GetGradient(const std::string& href)
+{
+    if (!context_) {
+        LOG(INFO) << "NO CONTEXT";
+        return std::nullopt;
+    }
+    auto refSvgNode = context_->GetSvgNodeById(href);
+    CHECK_NULL_RETURN(refSvgNode, std::nullopt);
+    auto svgGradient = std::dynamic_pointer_cast<SvgGradient>(refSvgNode);
+    if (svgGradient) {
+        return std::make_optional(svgGradient->GetGradient());
+    }
+    return std::nullopt;
+}
+
 void SvgNode::Draw(OH_Drawing_Canvas *canvas) {
     // mask and filter create extra layers, need to record initial layer count
     LOG(INFO) << "[SvgNode] Draw enter";
@@ -150,23 +187,17 @@ void SvgNode::UpdateCommonProps(const ConcreteProps &props) {
         hrefClipPath_ = props->clipPath;
     }
 
-    if (hrefFill_) {
-        // auto href = attributes_.fillState.GetHref();
-        // if (!href.empty()) {
-        //   auto gradient = GetGradient(href);
-        //   if (gradient) {
-        //     attributes_.fillState.SetGradient(gradient.value());
-        //   }
-        // }
-    }
-
     std::unordered_set<std::string> set;
+
     for (const auto& prop : props->propList) {
+        LOG(INFO) << "[UpdateCommonProps] insert prop:" << prop;
         set.insert(prop);
     }
     attributes_.fillState.SetColor(Color((uint32_t)*props->fill.payload), set.count("fill"));
     attributes_.fillState.SetOpacity(std::clamp(props->fillOpacity, 0.0, 1.0), set.count("fillOpacity"));
     attributes_.fillState.SetFillRule(std::to_string(props->fillRule), set.count("fillRule"));
+    attributes_.fillState.SetHref(props->fill.brushRef);
+    LOG(INFO) << "[UpdateCommonProps] fill brushRef:" << props->fill.brushRef;
 
     attributes_.strokeState.SetColor(Color((uint32_t)*props->stroke.payload), set.count("stroke"));
     attributes_.strokeState.SetLineWidth(vpToPx(StringUtils::StringToDouble(props->strokeWidth)), set.count("strokeWidth"));
